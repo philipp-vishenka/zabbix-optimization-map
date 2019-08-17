@@ -12,9 +12,9 @@ __version__ = '2019.08.17'
 
 config = {
     'zabbix': {
-        'url': 'http://192.168.0.9/zabbix/',
-        'user': 'zapi',
-        'password': 'jDkwl(28*52bGH1'
+        'url': 'url',
+        'user': 'user',
+        'password': 'password'
     },
 }
 
