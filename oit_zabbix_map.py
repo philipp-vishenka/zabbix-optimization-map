@@ -21,6 +21,7 @@ config = {
 temp_name_korenix = r'^([0-9]+).Korenix$'
 temp_name_radius = '.Radius'
 temp_name_moxa = '.MGate'
+data = {}
 
 
 parser = argparse.ArgumentParser()
@@ -28,10 +29,10 @@ parser.add_argument('host_host', type=str)
 args = parser.parse_args()
 
 
-def check_host(hosts):
-    for host in hosts:
+def check_host(*kwargs):
+    for hostname in kwargs:
         if not zapi.do_request(method='host.get',
-                               params={'filter': {'host': [host]}})['result']:
+                               params={'filter': {'host': [hostname]}})['result']:
             result = False
             break
         else:
@@ -40,93 +41,81 @@ def check_host(hosts):
     return result
 
 
-def req_host_data(arr):
-    hosts_data = {}
-
-    for host_name in arr:
+def req_host_data(data_dict):
+    for key in data_dict:
         params_host = {
             'output': ['hostid'],
-            'filter': {'host': host_name}
+            'filter': {'host': data_dict[key]['hostname']}
         }
-        host = zapi.do_request(method='host.get',
-                               params=params_host)['result'][0]
+        host_get = zapi.do_request(method='host.get',
+                                   params=params_host)['result'][0]
 
         params_host_interface = {
             'output': ['ip'],
             'filter': {
-                'hostid': host['hostid'],
+                'hostid': host_get['hostid'],
                 'main': '1'
             }
         }
-        host_interface = zapi.do_request(method='hostinterface.get',
-                                         params=params_host_interface)['result'][0]
+        host_interface_get = zapi.do_request(method='hostinterface.get',
+                                             params=params_host_interface)['result'][0]
 
-        hosts_data[host_name] = {'id': host['hostid'],
-                                 'ip': host_interface['ip']}
-
-    return hosts_data
+        data[key]['id'] = host_get['hostid']
+        data[key]['ip'] = host_interface_get['ip']
 
 
 if re.search(temp_name_korenix, args.host_host):
-    list_hostname = []
-
-    host_host_korenix = args.host_host
-    list_hostname.append(host_host_korenix)
-
-    host_host_number = re.search(r'([0-9]+).[A-z]+', host_host_korenix)[1]
-
-    map_name = '[scr] БКМ %s' % host_host_number
-    ele_map_name = 'БКМ %s' % host_host_number
-    arr_host_host = []
-
-    host_host_radius = '%s%s' % (host_host_number, temp_name_radius)
-    arr_host_host.append(host_host_radius)
-    list_hostname.append(host_host_radius)
-
-    host_host_moxa = '%s%s' % (host_host_number, temp_name_moxa)
-    arr_host_host.append(host_host_moxa)
-    list_hostname.append(host_host_moxa)
+    data['kx'] = {'hostname': args.host_host}
+    host_num = re.search(r'([0-9]+)', data['kx']['hostname'])[1]
+    data['rs'] = {'hostname': host_num + temp_name_radius}
+    data['mx'] = {'hostname': host_num + temp_name_moxa}
+    map_name = '[scr] БКМ %s' % host_num
+    ele_map_name = 'БКМ %s' % host_num
 
     zapi = ZabbixAPI(config['zabbix']['url'],
                      user=config['zabbix']['user'],
                      password=config['zabbix']['password'])
 
-    if check_host(arr_host_host):
-        data = req_host_data(list_hostname)
+    if check_host(data['rs']['hostname'],
+                  data['mx']['hostname']):
 
-        params_maps = {
+        req_host_data(data)
+        print(data)
+
+        update_maps = []
+        kx_selementid = ''
+
+        params_update_map = {
             'output': 'extend',
             'selectSelements': 'extend'
         }
-        maps = zapi.do_request(method='map.get',
-                               params=params_maps)['result']
+        update_maps_get = zapi.do_request(method='map.get',
+                                          params=params_update_map)['result']
 
-        array_maps = []
-        selementid_korenix = ''
+        for map_get in update_maps_get:
+            if not re.search(r'\[scr\]', map_get['name']):
+                for selement in map_get['selements']:
+                    if 'elements' in selement and re.search(r'\[scr\]', selement['label']):
+                        for element in selement['elements']:
+                            if ('hostid' in element) and element['hostid'] == data['kx']['id']:
+                                kx_selementid = selement['selementid']
+                                update_maps.append(map_get['sysmapid'])
 
-        for i_map in maps:
-            if not re.search(r'\[scr\]', i_map['name']):
-                for i_selement in i_map['selements']:
-                    if 'elements' in i_selement and re.search(r'\[scr\]', i_selement['label']):
-                        for i_element in i_selement['elements']:
-                            if ('hostid' in i_element) and i_element['hostid'] == data[host_host_korenix]['id']:
-                                selementid_korenix = i_selement['selementid']
-                                array_maps.append(i_map['sysmapid'])
-
-        if not array_maps:
-            print('Maps for editing found: %s.' % array_maps)
+        if not update_maps:
+            print('Maps for editing found: %s.' % update_maps)
             sys.exit()
-        if len(array_maps) > 1:
-            print('Found several maps with element id: %s (%s) and a word [scr].' % (data[host_host_korenix]['id'],
-                                                                                     host_host_korenix))
+
+        if len(update_maps) > 1:
+            print('Found several maps with element id: %s (%s) and a word [scr].' % (data['kx']['id'],
+                                                                                     data['kx']['hostname']))
             sys.exit()
 
         # Duplicate.
-        map_bkm_id = zapi.do_request(method='map.get',
+        new_map_id = zapi.do_request(method='map.get',
                                      params={'filter': {'name': map_name}})['result']
 
-        if not map_bkm_id:
-            template_map = {
+        if not new_map_id:
+            params_new_map = {
                 'name': map_name,
                 'width': '600',
                 'height': '600',
@@ -141,7 +130,7 @@ if re.search(temp_name_korenix, args.host_host):
                     {
                         'selementid': '1',
                         'elements': [
-                            {'hostid': data[host_host_korenix]['id']}
+                            {'hostid': data['kx']['id']}
                         ],
                         'elementtype': '0',
                         'iconid_off': '154',
@@ -152,7 +141,7 @@ if re.search(temp_name_korenix, args.host_host):
                     {
                         'selementid': '2',
                         'elements': [
-                            {'hostid': data[host_host_radius]['id']}
+                            {'hostid': data['rs']['id']}
                         ],
                         'elementtype': '0',
                         'iconid_off': '124',
@@ -163,7 +152,7 @@ if re.search(temp_name_korenix, args.host_host):
                     {
                         'selementid': '3',
                         'elements': [
-                            {'hostid': data[host_host_moxa]['id']}
+                            {'hostid': data['mx']['id']}
                         ],
                         'elementtype': '0',
                         'iconid_off': '154',
@@ -202,17 +191,17 @@ if re.search(temp_name_korenix, args.host_host):
                 ]
             }
 
-            map_bkm_id = zapi.do_request(method='map.create',
-                                         params=template_map)['result']['sysmapids'][0]
+            new_pam_id = zapi.do_request(method='map.create',
+                                         params=params_new_map)['result']['sysmapids'][0]
             print('Map "%s" created.' % map_name)
         else:
             print('Map %s exists.' % map_name)
-            map_bkm_id = map_bkm_id[0]['sysmapid']
+            new_map_id = new_map_id[0]['sysmapid']
 
         params_up_map = {
             'output': 'extend',
             'filter': {
-                'sysmapid': array_maps[0]
+                'sysmapid': update_maps[0]
                        },
             'selectSelements': 'extend'
         }
@@ -221,19 +210,19 @@ if re.search(temp_name_korenix, args.host_host):
                                         params=params_up_map)['result'][0]['selements']
 
         for position, element in enumerate(old_selements):
-            if element['selementid'] == selementid_korenix:
+            if element['selementid'] == kx_selementid:
                 element.update({'elementtype': '1'})
                 element.update({'iconid_off': '154'})
                 element.update({'label': '%s\r\n%s\r\n%s\r\n%s' % (ele_map_name,
-                                                                   data[host_host_korenix]['ip'],
-                                                                   data[host_host_radius]['ip'],
-                                                                   data[host_host_moxa]['ip'])})
-                element.update({'elements': [{'sysmapid': map_bkm_id}]})
+                                                                   data['kx']['ip'],
+                                                                   data['rs']['ip'],
+                                                                   data['mx']['ip'])})
+                element.update({'elements': [{'sysmapid': new_map_id}]})
                 old_selements[position] = element
                 new_selements = old_selements
 
         test_map = {
-            'sysmapid': array_maps[0],
+            'sysmapid': update_maps[0],
             'selements': old_selements
         }
 
@@ -243,7 +232,7 @@ if re.search(temp_name_korenix, args.host_host):
         print('Script complete.')
 
     else:
-        print('Hosts: %s not found.' % arr_host_host)
+        print('Hosts not found.')
         sys.exit()
 
 else:
