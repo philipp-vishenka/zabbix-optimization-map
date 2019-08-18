@@ -12,21 +12,20 @@ __version__ = '2019.08.17'
 
 config = {
     'zabbix': {
-        'url': 'url',
-        'user': 'user',
-        'password': 'password'
+        'url': 'http://192.168.0.9/zabbix',
+        'user': 'zabadm',
+        'password': 'enable'
     },
 }
+
+temp_name_korenix = r'^([0-9]+).Korenix$'
+temp_name_radius = '.Radius'
+temp_name_moxa = '.MGate'
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument('host_host', type=str)
 args = parser.parse_args()
-
-
-temp_name_korenix = r'^([0-9]+).Korenix$'
-temp_name_radius = '.Radius'
-temp_name_moxa = '.MGate'
 
 
 def check_host(hosts):
@@ -41,37 +40,59 @@ def check_host(hosts):
     return result
 
 
-def req_host_id(host):
-    params = {
-        'output': ['hostid'],
-        'filter': {'host': [host]}
-    }
+def req_host_data(arr):
+    hosts_data = {}
 
-    return zapi.do_request(method='host.get',
-                           params=params)['result'][0]['hostid']
+    for host_name in arr:
+        params_host = {
+            'output': ['hostid'],
+            'filter': {'host': host_name}
+        }
+        host = zapi.do_request(method='host.get',
+                               params=params_host)['result'][0]
+
+        params_host_interface = {
+            'output': ['ip'],
+            'filter': {
+                'hostid': host['hostid'],
+                'main': '1'
+            }
+        }
+        host_interface = zapi.do_request(method='hostinterface.get',
+                                         params=params_host_interface)['result'][0]
+
+        hosts_data[host_name] = {'id': host['hostid'],
+                                 'ip': host_interface['ip']}
+
+    return hosts_data
+
 
 if re.search(temp_name_korenix, args.host_host):
+    list_hostname = []
+
     host_host_korenix = args.host_host
+    list_hostname.append(host_host_korenix)
+
     host_host_number = re.search(r'([0-9]+).[A-z]+', host_host_korenix)[1]
+
     map_name = '[scr] БКМ %s' % host_host_number
     ele_map_name = 'БКМ %s' % host_host_number
-
     arr_host_host = []
 
     host_host_radius = '%s%s' % (host_host_number, temp_name_radius)
     arr_host_host.append(host_host_radius)
+    list_hostname.append(host_host_radius)
 
     host_host_moxa = '%s%s' % (host_host_number, temp_name_moxa)
     arr_host_host.append(host_host_moxa)
+    list_hostname.append(host_host_moxa)
 
     zapi = ZabbixAPI(config['zabbix']['url'],
                      user=config['zabbix']['user'],
                      password=config['zabbix']['password'])
 
     if check_host(arr_host_host):
-        host_id_korenix = req_host_id(host_host_korenix)
-        host_id_radius = req_host_id(host_host_radius)
-        host_id_moxa = req_host_id(host_host_moxa)
+        data = req_host_data(list_hostname)
 
         params_maps = {
             'output': 'extend',
@@ -88,7 +109,7 @@ if re.search(temp_name_korenix, args.host_host):
                 for i_selement in i_map['selements']:
                     if 'elements' in i_selement and re.search(r'\[scr\]', i_selement['label']):
                         for i_element in i_selement['elements']:
-                            if ('hostid' in i_element) and i_element['hostid'] == host_id_korenix:
+                            if ('hostid' in i_element) and i_element['hostid'] == data[host_host_korenix]['id']:
                                 selementid_korenix = i_selement['selementid']
                                 array_maps.append(i_map['sysmapid'])
 
@@ -96,7 +117,8 @@ if re.search(temp_name_korenix, args.host_host):
             print('Maps for editing found: %s.' % array_maps)
             sys.exit()
         if len(array_maps) > 1:
-            print('Found several maps with element id: %s (%s) and a word [scr].' % (host_id_korenix, host_host_korenix))
+            print('Found several maps with element id: %s (%s) and a word [scr].' % (data[host_host_korenix]['id'],
+                                                                                     host_host_korenix))
             sys.exit()
 
         # Duplicate.
@@ -119,7 +141,7 @@ if re.search(temp_name_korenix, args.host_host):
                     {
                         'selementid': '1',
                         'elements': [
-                            {'hostid': host_id_korenix}
+                            {'hostid': data[host_host_korenix]['id']}
                         ],
                         'elementtype': '0',
                         'iconid_off': '154',
@@ -130,7 +152,7 @@ if re.search(temp_name_korenix, args.host_host):
                     {
                         'selementid': '2',
                         'elements': [
-                            {'hostid': host_id_radius}
+                            {'hostid': data[host_host_radius]['id']}
                         ],
                         'elementtype': '0',
                         'iconid_off': '124',
@@ -141,7 +163,7 @@ if re.search(temp_name_korenix, args.host_host):
                     {
                         'selementid': '3',
                         'elements': [
-                            {'hostid': host_id_moxa}
+                            {'hostid': data[host_host_moxa]['id']}
                         ],
                         'elementtype': '0',
                         'iconid_off': '154',
@@ -196,13 +218,16 @@ if re.search(temp_name_korenix, args.host_host):
         }
 
         old_selements = zapi.do_request(method='map.get',
-                                 params=params_up_map)['result'][0]['selements']
+                                        params=params_up_map)['result'][0]['selements']
 
         for position, element in enumerate(old_selements):
             if element['selementid'] == selementid_korenix:
                 element.update({'elementtype': '1'})
                 element.update({'iconid_off': '154'})
-                element.update({'label': ele_map_name})
+                element.update({'label': '%s\r\n%s\r\n%s\r\n%s' % (ele_map_name,
+                                                                   data[host_host_korenix]['ip'],
+                                                                   data[host_host_radius]['ip'],
+                                                                   data[host_host_moxa]['ip'])})
                 element.update({'elements': [{'sysmapid': map_bkm_id}]})
                 old_selements[position] = element
                 new_selements = old_selements
@@ -212,7 +237,8 @@ if re.search(temp_name_korenix, args.host_host):
             'selements': old_selements
         }
 
-        upgrade_map = zapi.do_request(method='map.update', params=test_map)
+        upgrade_map = zapi.do_request(method='map.update',
+                                      params=test_map)
 
         print('Script complete.')
 
@@ -221,5 +247,6 @@ if re.search(temp_name_korenix, args.host_host):
         sys.exit()
 
 else:
-    print('Incorrect hostname: "%s" (template: %s).' % (args.host_host, temp_name_korenix))
+    print('Incorrect hostname: "%s" (template: %s).' % (args.host_host,
+                                                        temp_name_korenix))
     sys.exit()
