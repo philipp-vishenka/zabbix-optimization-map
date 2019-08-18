@@ -80,41 +80,45 @@ if re.search(temp_name_korenix, args.host_host):
                   data['mx']['hostname']):
 
         req_host_data(data)
-        print(data)
 
-        update_maps = []
+        map_id_for_up = []
         kx_selementid = ''
 
-        params_update_map = {
+        par_all_temp_map = {
             'output': 'extend',
             'selectSelements': 'extend'
         }
-        update_maps_get = zapi.do_request(method='map.get',
-                                          params=params_update_map)['result']
+        all_temp_map = zapi.do_request(method='map.get',
+                                       params=par_all_temp_map)['result']
 
-        for map_get in update_maps_get:
-            if not re.search(r'\[scr\]', map_get['name']):
-                for selement in map_get['selements']:
+        for temp_map in all_temp_map:
+            if not re.search(r'\[scr\]', temp_map['name']):
+                for selement in temp_map['selements']:
                     if 'elements' in selement and re.search(r'\[scr\]', selement['label']):
                         for element in selement['elements']:
                             if ('hostid' in element) and element['hostid'] == data['kx']['id']:
                                 kx_selementid = selement['selementid']
-                                update_maps.append(map_get['sysmapid'])
+                                map_id_for_up.append(temp_map['sysmapid'])
 
-        if not update_maps:
-            print('Maps for editing found: %s.' % update_maps)
+        if not map_id_for_up:
+            print('Maps for editing found: %s.' % map_id_for_up)
             sys.exit()
 
-        if len(update_maps) > 1:
-            print('Found several maps with element id: %s (%s) and a word [scr].' % (data['kx']['id'],
-                                                                                     data['kx']['hostname']))
+        elif len(map_id_for_up) > 1:
+            print('Found several maps (%s) with element id: %s (%s) and a word [scr].' % (map_id_for_up,
+                                                                                          data['kx']['id'],
+                                                                                          data['kx']['hostname']))
             sys.exit()
 
         # Duplicate.
-        new_map_id = zapi.do_request(method='map.get',
-                                     params={'filter': {'name': map_name}})['result']
+        par_dup_map_id = {
+            'filter': {'name': map_name}
+        }
+        dup_map_id = zapi.do_request(method='map.get',
+                                     params=par_dup_map_id)['result'][0]['sysmapid']
 
-        if not new_map_id:
+        # If there are no duplicate cards then create a new map.
+        if not dup_map_id:
             params_new_map = {
                 'name': map_name,
                 'width': '600',
@@ -191,25 +195,25 @@ if re.search(temp_name_korenix, args.host_host):
                 ]
             }
 
-            new_pam_id = zapi.do_request(method='map.create',
-                                         params=params_new_map)['result']['sysmapids'][0]
+            created_map_id = zapi.do_request(method='map.create',
+                                             params=params_new_map)['result']['sysmapids'][0]
             print('Map "%s" created.' % map_name)
+
         else:
             print('Map %s exists.' % map_name)
-            new_map_id = new_map_id[0]['sysmapid']
+            created_map_id = dup_map_id
 
         params_up_map = {
             'output': 'extend',
             'filter': {
-                'sysmapid': update_maps[0]
-                       },
+                'sysmapid': map_id_for_up[0]
+            },
             'selectSelements': 'extend'
         }
+        updated_map_template = zapi.do_request(method='map.get',
+                                               params=params_up_map)['result'][0]['selements']
 
-        old_selements = zapi.do_request(method='map.get',
-                                        params=params_up_map)['result'][0]['selements']
-
-        for position, element in enumerate(old_selements):
+        for position, element in enumerate(updated_map_template):
             if element['selementid'] == kx_selementid:
                 element.update({'elementtype': '1'})
                 element.update({'iconid_off': '154'})
@@ -217,25 +221,21 @@ if re.search(temp_name_korenix, args.host_host):
                                                                    data['kx']['ip'],
                                                                    data['rs']['ip'],
                                                                    data['mx']['ip'])})
-                element.update({'elements': [{'sysmapid': new_map_id}]})
-                old_selements[position] = element
-                new_selements = old_selements
+                element.update({'elements': [{'sysmapid': created_map_id}]})
+                updated_map_template[position] = element
 
-        test_map = {
-            'sysmapid': update_maps[0],
-            'selements': old_selements
+        params_up_map = {
+            'sysmapid': map_id_for_up[0],
+            'selements': updated_map_template
         }
-
-        upgrade_map = zapi.do_request(method='map.update',
-                                      params=test_map)
-
-        print('Script complete.')
+        zapi.do_request(method='map.update',
+                        params=params_up_map)
+        print('Map updated.')
 
     else:
         print('Hosts not found.')
         sys.exit()
 
 else:
-    print('Incorrect hostname: "%s" (template: %s).' % (args.host_host,
-                                                        temp_name_korenix))
+    print('Incorrect hostname: "%s" (template: %s).' % (args.host_host, temp_name_korenix))
     sys.exit()
