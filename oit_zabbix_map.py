@@ -1,28 +1,26 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
+
 import argparse
 import re
 import sys
 from pyzabbix import ZabbixAPI
 
-
 __version__ = '2019.08.17'
-
 
 config = {
     'zabbix': {
-        'url': 'http://192.168.0.9/zabbix',
-        'user': 'zabadm',
-        'password': 'enable'
+        'url': 'https://localhost/zabbix/',
+        'user': 'zapi',
+        'password': 'jDkwl(28*52bGH1'
     },
 }
 
 temp_name_korenix = r'^([0-9]+).Korenix$'
-temp_name_radius = '.Radius'
+temp_name_radius = '.WF.Radius'
 temp_name_moxa = '.MGate'
 data = {}
-
 
 parser = argparse.ArgumentParser()
 parser.add_argument('host_host', type=str)
@@ -69,8 +67,8 @@ if re.search(temp_name_korenix, args.host_host):
     host_num = re.search(r'([0-9]+)', data['kx']['hostname'])[1]
     data['rs'] = {'hostname': host_num + temp_name_radius}
     data['mx'] = {'hostname': host_num + temp_name_moxa}
-    map_name = '[scr] БКМ %s' % host_num
-    ele_map_name = 'БКМ %s' % host_num
+    map_name = '[scr] ÁÊÌ %s' % host_num
+    ele_map_name = 'ÁÊÌ %s' % host_num
 
     zapi = ZabbixAPI(config['zabbix']['url'],
                      user=config['zabbix']['user'],
@@ -111,14 +109,16 @@ if re.search(temp_name_korenix, args.host_host):
             sys.exit()
 
         # Duplicate.
-        par_dup_map_id = {
-            'filter': {'name': map_name}
-        }
-        dup_map_id = zapi.do_request(method='map.get',
-                                     params=par_dup_map_id)['result'][0]['sysmapid']
+        try:
+            par_dup_map_id = {
+                'filter': {'name': map_name}
+            }
+            dup_map_id = zapi.do_request(method='map.get',
+                                         params=par_dup_map_id)['result'][0]['sysmapid']
 
-        # If there are no duplicate cards then create a new map.
-        if not dup_map_id:
+            print('Map %s exists.' % map_name)
+            created_map_id = dup_map_id
+        except:
             params_new_map = {
                 'name': map_name,
                 'width': '600',
@@ -199,10 +199,6 @@ if re.search(temp_name_korenix, args.host_host):
                                              params=params_new_map)['result']['sysmapids'][0]
             print('Map "%s" created.' % map_name)
 
-        else:
-            print('Map %s exists.' % map_name)
-            created_map_id = dup_map_id
-
         params_up_map = {
             'output': 'extend',
             'filter': {
@@ -217,7 +213,7 @@ if re.search(temp_name_korenix, args.host_host):
             if element['selementid'] == kx_selementid:
                 element.update({'elementtype': '1'})
                 element.update({'iconid_off': '154'})
-                element.update({'label': '%s\r\n%s\r\n%s\r\n%s' % (ele_map_name,
+                element.update({'label': '%s\r\nkx: %s\r\nrs: %s\r\nmx: %s' % (ele_map_name,
                                                                    data['kx']['ip'],
                                                                    data['rs']['ip'],
                                                                    data['mx']['ip'])})
