@@ -2,10 +2,23 @@
 
 
 import argparse
+import json
+import os
+from dotenv import load_dotenv
 
 
 __author__ = "Vishenka Philipp"
 __version__ = "1.0.0"
+
+
+load_dotenv('G:/python/conf/.env')
+config = {
+    'zabbix': {
+        'url': os.getenv('URL'),
+        'user': os.getenv('USER'),
+        'password': os.getenv('PASSWORD')
+    },
+}
 
 
 def main():
@@ -32,6 +45,10 @@ def separation_hostname(hostname, separator):
             number += i
     data["number"] = number
     return data
+
+
+def check_map(map_name):
+    print(1)
 
 
 if __name__ == "__main__":
