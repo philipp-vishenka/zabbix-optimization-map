@@ -25,32 +25,45 @@ def main():
     args = parser.parse_args()
 
     sep = separation_hostname(args.hostname, args.separator)
-    print(sep["map_name"])
-    print(sep["number"])
+    # print(sep["update_map_name"])
+    # print(sep["create_map_name"])
+    # print(sep["number"])
+    # print(args.template)
 
     zapi = ZabbixAPI(url=os.getenv('URL'),
                      user=os.getenv('USER'),
                      password=os.getenv('PASSWORD'))
 
     params_maps = {
-        'output': 'extend'
+        "output": "extend",
+        "selectSelements": "extend"
     }
     maps = zapi.do_request(method='map.get',
                            params=ast.literal_eval(str(params_maps)))['result']
-    print(maps)
 
-    params_hosts = {
-        'output': 'extend'
-    }
-    hosts = zapi.do_request(method='host.get',
-                            params=ast.literal_eval(str(params_hosts)))['result']
-    print(hosts)
+    template_map = check_map(maps, args.template)
+    if len(template_map):
+        update_map = check_map(maps, sep["update_map_name"])
+        if len(update_map):
+            name_list = general_host_name(args.separator, template_map, sep["create_map_name"])
+            print(name_list)
+        else:
+            print('%s not found.' % sep["update_map_name"])
+
+        params_hosts = {
+            'output': 'extend'
+        }
+        hosts = zapi.do_request(method='host.get',
+                                params=ast.literal_eval(str(params_hosts)))['result']
+    else:
+        print('%s not found.' % args.template)
 
 
 def separation_hostname(hostname, separator):
     data = {}
     first_separator = hostname.split(separator[0])
-    data["map_name"] = first_separator[0]
+    data["update_map_name"] = first_separator[0]
+    data["create_map_name"] = hostname.split(separator[1])[0]
     second_separator = first_separator[1].split(separator[1])
     number = ""
     for i in second_separator[0]:
@@ -60,8 +73,22 @@ def separation_hostname(hostname, separator):
     return data
 
 
-def check_map(map_name):
-    print(1)
+def check_map(maps, name):
+    for i in maps:
+        if name in i["name"]:
+            return [i]
+    return []
+
+
+def general_host_name(separator, template_map, create_map_name):
+    list_name = []
+    for i in template_map[0]["selements"]:
+        list_name.append("%s%s%s" % (create_map_name, separator[1], i["label"]))
+    return list_name
+
+
+def check_host(hosts, name_list):
+    print(hosts, name_list)
 
 
 if __name__ == "__main__":
