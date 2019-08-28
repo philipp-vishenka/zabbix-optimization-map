@@ -16,66 +16,6 @@ __version__ = "1.0.0"
 load_dotenv('../.env')
 
 
-def main():
-    # -hn "1300.22=BKM67-MB3170" -tp "[template] map" -sr = -
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-hn", "--hostname", type=str, help="zabbix hostname {HOST.NAME}")
-    parser.add_argument("-tp", "--template", type=str, help="zabbix template map")
-    parser.add_argument("-sr", "--separator", nargs="+", help="")
-    args = parser.parse_args()
-
-    sep = separation_hostname(args.hostname, args.separator)
-    # print(sep["update_map_name"])
-    # print(sep["create_map_name"])
-    # print(sep["number"])
-    # print(args.template)
-
-    zapi = ZabbixAPI(url=os.getenv('URL'),
-                     user=os.getenv('USER'),
-                     password=os.getenv('PASSWORD'))
-
-    params_maps = {
-        "output": "extend",
-        "selectSelements": "extend",
-        "selectLinks": "extend",
-    }
-    maps = zapi.do_request(method='map.get',
-                           params=ast.literal_eval(str(params_maps)))['result']
-
-    template_map = check_map(maps, args.template)
-    if len(template_map):
-        update_map = check_map(maps, sep["update_map_name"])
-        if len(update_map):
-            name_list = generate_host_name(args.separator, template_map, sep["create_map_name"])
-            # print(name_list)
-
-            params_hosts = {
-                'output': 'extend'
-            }
-            hosts = zapi.do_request(method='host.get',
-                                    params=ast.literal_eval(str(params_hosts)))['result']
-
-            host_info = check_host(hosts, name_list)
-            if host_info:
-                create_map_info = check_map(maps, sep["create_map_name"])
-                new_map_id = ""
-                if len(create_map_info):
-                    new_map_id = create_map_info[0]["sysmapid"]
-                else:
-                    new_map_temp = preparation_template(template_map, sep["create_map_name"], host_info)
-                    new_map_id = zapi.do_request(method='map.create',
-                                                 params=ast.literal_eval(str(new_map_temp)))["result"]["sysmapid"]
-
-            else:
-                print(host_info)
-
-        else:
-            print('%s not found.' % sep["update_map_name"])
-
-    else:
-        print('%s not found.' % args.template)
-
-
 def separation_hostname(hostname, separator):
     data = {}
     first_separator = hostname.split(separator[0])
@@ -125,6 +65,62 @@ def preparation_template(map_temp, map_name, host_list):
                 i.update({"elementtype": "0"})
                 i.update({"elements": [{"hostid": host["hostid"]}]})
     return map_temp
+
+
+def main():
+    # -hn "1300.22=BKM67-MB3170" -tp "[template] map" -sr = -
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-hn", "--hostname", type=str, help="zabbix hostname {HOST.NAME}")
+    parser.add_argument("-tp", "--template", type=str, help="zabbix template map")
+    parser.add_argument("-sr", "--separator", nargs="+", help="")
+    args = parser.parse_args()
+
+    sep = separation_hostname(args.hostname, args.separator)
+
+    zapi = ZabbixAPI(url=os.getenv('URL'),
+                     user=os.getenv('USER'),
+                     password=os.getenv('PASSWORD'))
+
+    params_maps = {
+        "output": "extend",
+        "selectSelements": "extend",
+        "selectLinks": "extend",
+    }
+    maps = zapi.do_request(method='map.get',
+                           params=ast.literal_eval(str(params_maps)))['result']
+
+    template_map = check_map(maps, args.template)
+    if len(template_map):
+        update_map = check_map(maps, sep["update_map_name"])
+        if len(update_map):
+            name_list = generate_host_name(args.separator, template_map, sep["create_map_name"])
+            # print(name_list)
+
+            params_hosts = {
+                'output': 'extend'
+            }
+            hosts = zapi.do_request(method='host.get',
+                                    params=ast.literal_eval(str(params_hosts)))['result']
+
+            host_info = check_host(hosts, name_list)
+            if host_info:
+                create_map_info = check_map(maps, sep["create_map_name"])
+                new_map_id = ""
+                if len(create_map_info):
+                    new_map_id = create_map_info[0]["sysmapid"]
+                else:
+                    new_map_temp = preparation_template(template_map, sep["create_map_name"], host_info)
+                    new_map_id = zapi.do_request(method='map.create',
+                                                 params=ast.literal_eval(str(new_map_temp)))["result"]["sysmapid"]
+
+            else:
+                print("hosts is not found")
+
+        else:
+            print('%s not found.' % sep["update_map_name"])
+
+    else:
+        print('%s not found.' % args.template)
 
 
 if __name__ == "__main__":
