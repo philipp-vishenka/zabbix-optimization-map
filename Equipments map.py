@@ -36,7 +36,8 @@ def main():
 
     params_maps = {
         "output": "extend",
-        "selectSelements": "extend"
+        "selectSelements": "extend",
+        "selectLinks": "extend",
     }
     maps = zapi.do_request(method='map.get',
                            params=ast.literal_eval(str(params_maps)))['result']
@@ -57,6 +58,16 @@ def main():
             host_info = check_host(hosts, name_list)
             if host_info:
                 print(host_info)
+                create_map_info = check_map(maps, sep["create_map_name"])
+                if len(create_map_info):
+                    print("1")
+                else:
+                    print("%s not found." % sep["create_map_name"])
+
+                    new_map_temp = preparation_template(template_map, sep["create_map_name"], host_info)
+                    zapi.do_request(method='map.create',
+                                    params=ast.literal_eval(str(new_map_temp)))
+
             else:
                 print(host_info)
 
@@ -105,6 +116,17 @@ def check_host(hosts, name_list):
         return arr
     else:
         return False
+
+
+def preparation_template(map_temp, map_name, host_list):
+    map_temp[0].update({"name": map_name})
+    for i in map_temp[0]["selements"]:
+        for host in host_list:
+            if i["label"] in host["name"]:
+                i.update({"label": "{HOST.NAME}"})
+                i.update({"elementtype": "0"})
+                i.update({"elements": [{"hostid": host["hostid"]}]})
+    return map_temp
 
 
 if __name__ == "__main__":
