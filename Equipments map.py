@@ -1,6 +1,7 @@
 """Creates a map for equipment."""
 
 
+import ast
 import argparse
 import json
 import os
@@ -35,13 +36,15 @@ def main():
         'output': 'extend'
     }
     maps = zapi.do_request(method='map.get',
-                           params=json.dumps(params_maps))['result']
+                           params=ast.literal_eval(str(params_maps)))['result']
+    print(maps)
 
     params_hosts = {
         'output': 'extend'
     }
-    hosts = zapi.do_request(method='map.get',
-                            params=json.dumps(params_hosts))['result']
+    hosts = zapi.do_request(method='host.get',
+                            params=ast.literal_eval(str(params_hosts)))['result']
+    print(hosts)
 
 
 def separation_hostname(hostname, separator):
