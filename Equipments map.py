@@ -46,7 +46,7 @@ def main():
     if len(template_map):
         update_map = check_map(maps, sep["update_map_name"])
         if len(update_map):
-            name_list = general_host_name(args.separator, template_map, sep["create_map_name"])
+            name_list = generate_host_name(args.separator, template_map, sep["create_map_name"])
             # print(name_list)
 
             params_hosts = {
@@ -97,7 +97,7 @@ def check_map(maps, name):
     return []
 
 
-def general_host_name(separator, template_map, create_map_name):
+def generate_host_name(separator, template_map, create_map_name):
     name_list = []
     for i in template_map[0]["selements"]:
         name_list.append("%s%s%s" % (create_map_name, separator[1], i["label"]))
