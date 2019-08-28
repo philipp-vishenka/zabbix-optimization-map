@@ -57,16 +57,14 @@ def main():
 
             host_info = check_host(hosts, name_list)
             if host_info:
-                print(host_info)
                 create_map_info = check_map(maps, sep["create_map_name"])
+                new_map_id = ""
                 if len(create_map_info):
-                    print("1")
+                    new_map_id = create_map_info[0]["sysmapid"]
                 else:
-                    print("%s not found." % sep["create_map_name"])
-
                     new_map_temp = preparation_template(template_map, sep["create_map_name"], host_info)
-                    zapi.do_request(method='map.create',
-                                    params=ast.literal_eval(str(new_map_temp)))
+                    new_map_id = zapi.do_request(method='map.create',
+                                                 params=ast.literal_eval(str(new_map_temp)))["result"]["sysmapid"]
 
             else:
                 print(host_info)
