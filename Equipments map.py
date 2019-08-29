@@ -76,13 +76,14 @@ def req_main_host_id(hostname, hosts):
             return host["hostid"]
 
 
-def preparation_main_template(map_template, host_id, map_id):
+def preparation_main_template(map_template, host_id, map_id, element_name):
     for selement in map_template[0]["selements"]:
         if selement["elements"] == [{"hostid": host_id}]:
-            selement.update({"label": "Test"})
+            selement.update({"label": element_name})
             selement.update({"elementtype": "1"})
             selement.update({"elements": [{"sysmapid": map_id}]})
-    return map_template
+            return map_template
+    return []
 
 
 def main():
@@ -124,9 +125,12 @@ def main():
                     print("Map '%s' not found (len(maps) > 1)." % data["name_new_map"])
 
                 main_host_id = req_main_host_id(args.hostname, hosts)
-                main_map = preparation_main_template(main_map, main_host_id, new_map_id)
-                zapi.do_request(method='map.update',
-                                params=ast.literal_eval(str(main_map)))
+                main_map = preparation_main_template(main_map, main_host_id, new_map_id, data["name_new_map"])
+                if len(main_map) == 1:
+                    zapi.do_request(method='map.update',
+                                    params=ast.literal_eval(str(main_map)))
+                else:
+                    print("host_id on main map not found")
             else:
                 print("Host '%s' not found (len(hosts)== 0 or > 1)." % hostname_list)
         else:
