@@ -16,111 +16,123 @@ __version__ = "1.0.0"
 load_dotenv('../.env')
 
 
-def separation_hostname(hostname, separator):
+def separation_hostname(hostname, seps):
     data = {}
-    first_separator = hostname.split(separator[0])
-    data["update_map_name"] = first_separator[0]
-    data["create_map_name"] = hostname.split(separator[1])[0]
-    second_separator = first_separator[1].split(separator[1])
-    number = ""
-    for i in second_separator[0]:
-        if not i.isalpha():
-            number += i
-    data["number"] = number
+    sep_2 = hostname.split(seps[1])
+    data["hostname_left"] = sep_2[0]
+    sep_2_left = sep_2[0].split(seps[0])
+    data["name_main_map"] = sep_2_left[0]
+    data["name_new_map"] = sep_2_left[1]
+    print(data)
     return data
 
 
-def check_map(maps, name):
-    for i in maps:
-        if name in i["name"]:
-            return [i]
-    return []
+def search_map(zapi, name):
+    params = {
+        "search": {"name": name},
+        "output": "extend",
+        "selectSelements": "extend",
+        "selectLinks": "extend"
+    }
+    maps = zapi.do_request(method='map.get',
+                           params=ast.literal_eval(str(params)))["result"]
+    return maps
 
 
-def generate_host_name(separator, template_map, create_map_name):
-    name_list = []
-    for i in template_map[0]["selements"]:
-        name_list.append("%s%s%s" % (create_map_name, separator[1], i["label"]))
-    return name_list
+def generate_host_name(sep, template, hostname_left):
+    hostname = []
+    for i in template[0]["selements"]:
+        hostname.append("%s%s%s" % (hostname_left, sep, i["label"]))
+    return hostname
 
 
-def check_host(hosts, name_list):
-    arr = []
-    for name in name_list:
+def search_host(zapi, hostname_list):
+    hosts = []
+    for hostname in hostname_list:
+        params_hosts = {
+            "filter": {"name": hostname},
+            'output': 'extend'
+        }
+        hosts.append(zapi.do_request(method='host.get',
+                                     params=ast.literal_eval(str(params_hosts)))['result'][0])
+    return hosts
+
+
+def preparation_new_template(map_template, map_name, hosts):
+    map_template[0].update({"name": map_name})
+    for selement in map_template[0]["selements"]:
         for host in hosts:
-            if name == host["name"]:
-                arr.append(host)
-    if len(name_list) == len(arr):
-        return arr
-    else:
-        return False
+            if selement["label"] in host["name"]:
+                selement.update({"label": "{HOST.NAME}"})
+                selement.update({"elementtype": "0"})
+                selement.update({"elements": [{"hostid": host["hostid"]}]})
+    return map_template
 
 
-def preparation_template(map_temp, map_name, host_list):
-    map_temp[0].update({"name": map_name})
-    for i in map_temp[0]["selements"]:
-        for host in host_list:
-            if i["label"] in host["name"]:
-                i.update({"label": "{HOST.NAME}"})
-                i.update({"elementtype": "0"})
-                i.update({"elements": [{"hostid": host["hostid"]}]})
-    return map_temp
+def req_main_host_id(hostname, hosts):
+    for host in hosts:
+        if host["name"] == hostname:
+            print(host["name"])
+            return host["hostid"]
+
+
+def preparation_main_template(map_template, host_id, map_id):
+    for selement in map_template[0]["selements"]:
+        if selement["elements"] == [{"hostid": host_id}]:
+            selement.update({"label": "Test"})
+            selement.update({"elementtype": "1"})
+            selement.update({"elements": [{"sysmapid": map_id}]})
+    return map_template
 
 
 def main():
-    # -hn "1300.22=BKM67-MB3170" -tp "[template] map" -sr = -
+    # -hn "1300.22=BKM67-MB3170" -tp "[template] BKM" -sr = -
     parser = argparse.ArgumentParser()
     parser.add_argument("-hn", "--hostname", type=str, help="zabbix hostname {HOST.NAME}")
     parser.add_argument("-tp", "--template", type=str, help="zabbix template map")
     parser.add_argument("-sr", "--separator", nargs="+", help="")
     args = parser.parse_args()
 
-    sep = separation_hostname(args.hostname, args.separator)
+    data = separation_hostname(args.hostname, args.separator)
 
     zapi = ZabbixAPI(url=os.getenv('URL'),
                      user=os.getenv('USER'),
                      password=os.getenv('PASSWORD'))
 
-    params_maps = {
-        "output": "extend",
-        "selectSelements": "extend",
-        "selectLinks": "extend",
-    }
-    maps = zapi.do_request(method='map.get',
-                           params=ast.literal_eval(str(params_maps)))['result']
+    map_template = search_map(zapi, args.template)
+    if len(map_template) == 1:
+        print("Map '%s' found." % args.template)
+        main_map = search_map(zapi, data["name_main_map"])
+        if len(main_map) == 1:
+            print("Map '%s' found." % data["name_main_map"])
+            hostname_list = generate_host_name(args.separator[1], map_template, data["hostname_left"])
 
-    template_map = check_map(maps, args.template)
-    if len(template_map):
-        update_map = check_map(maps, sep["update_map_name"])
-        if len(update_map):
-            name_list = generate_host_name(args.separator, template_map, sep["create_map_name"])
-            # print(name_list)
-
-            params_hosts = {
-                'output': 'extend'
-            }
-            hosts = zapi.do_request(method='host.get',
-                                    params=ast.literal_eval(str(params_hosts)))['result']
-
-            host_info = check_host(hosts, name_list)
-            if host_info:
-                create_map_info = check_map(maps, sep["create_map_name"])
+            hosts = search_host(zapi, hostname_list)
+            if len(hosts) == len(hostname_list):
+                print("Host '%s' found." % hostname_list)
+                new_map = search_map(zapi, data["name_new_map"])
                 new_map_id = ""
-                if len(create_map_info):
-                    new_map_id = create_map_info[0]["sysmapid"]
-                else:
-                    new_map_temp = preparation_template(template_map, sep["create_map_name"], host_info)
+                if len(new_map) == 0:
+                    print("Map '%s' not found." % data["name_new_map"])
+                    new_map = preparation_new_template(map_template, data["name_new_map"], hosts)
                     new_map_id = zapi.do_request(method='map.create',
-                                                 params=ast.literal_eval(str(new_map_temp)))["result"]["sysmapid"]
+                                                 params=ast.literal_eval(str(new_map)))["result"]["sysmapids"][0]
+                elif len(new_map) == 1:
+                    print("Map '%s' found." % data["name_new_map"])
+                    new_map_id = new_map[0]["sysmapid"]
+                else:
+                    print("Map '%s' not found (len(maps) > 1)." % data["name_new_map"])
 
+                main_host_id = req_main_host_id(args.hostname, hosts)
+                main_map = preparation_main_template(main_map, main_host_id, new_map_id)
+                zapi.do_request(method='map.update',
+                                params=ast.literal_eval(str(main_map)))
             else:
-                print("hosts is not found")
-
+                print("Host '%s' not found (len(hosts)== 0 or > 1)." % hostname_list)
         else:
-            print('%s not found.' % sep["update_map_name"])
-
+            print("Map '%s' not found (len(maps)== 0 or > 1)." % data["name_main_map"])
     else:
-        print('%s not found.' % args.template)
+        print("Map '%s' not found (len(maps)== 0 or > 1)." % args.template)
 
 
 if __name__ == "__main__":
