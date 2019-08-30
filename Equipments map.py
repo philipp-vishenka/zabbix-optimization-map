@@ -103,11 +103,11 @@ def main():
     map_template = search_map(zapi, args.template)
     if len(map_template) == 1:
         print("Map '%s' found." % args.template)
-        st_1_main_map = search_map(zapi, args.prefix)
+        st_1_main_map = search_map(zapi, data["name_main_map"])
 
         main_map = []
         for ele in st_1_main_map:
-            if data["name_main_map"] in ele["name"]:
+            if args.prefix in ele["name"]:
                 main_map.append(ele)
 
         if len(main_map) == 1:
