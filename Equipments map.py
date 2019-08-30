@@ -16,9 +16,9 @@ def separation_hostname(hostname, seps):
     data = {}
     sep_2 = hostname.split(seps[1])
     data["hostname_left"] = sep_2[0]
+    data["name_new_map"] = sep_2[0]
     sep_2_left = sep_2[0].split(seps[0])
     data["name_main_map"] = sep_2_left[0]
-    data["name_new_map"] = sep_2_left[1]
     return data
 
 
@@ -89,6 +89,7 @@ def main():
     # -hn "1300.22=BKM67-MB3170" -tp "[template] BKM" -sr = -
     parser = argparse.ArgumentParser()
     parser.add_argument("-hn", "--hostname", type=str, help="zabbix hostname {HOST.NAME}")
+    parser.add_argument("--prefix", type=str, help="main prefix hostname")
     parser.add_argument("-tp", "--template", type=str, help="zabbix template map")
     parser.add_argument("-sr", "--separator", nargs="+", help="")
     args = parser.parse_args()
@@ -102,7 +103,13 @@ def main():
     map_template = search_map(zapi, args.template)
     if len(map_template) == 1:
         print("Map '%s' found." % args.template)
-        main_map = search_map(zapi, data["name_main_map"])
+        st_1_main_map = search_map(zapi, args.prefix)
+
+        main_map = []
+        for ele in st_1_main_map:
+            if data["name_main_map"] in ele["name"]:
+                main_map.append(ele)
+
         if len(main_map) == 1:
             print("Map '%s' found." % data["name_main_map"])
             hostname_list = generate_host_name(args.separator[1], map_template, data["hostname_left"])
