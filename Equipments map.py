@@ -3,7 +3,6 @@
 
 import ast
 import argparse
-import json
 from os import environ
 from dotenv import load_dotenv, find_dotenv
 from pyzabbix import ZabbixAPI
@@ -11,9 +10,6 @@ from pyzabbix import ZabbixAPI
 
 __author__ = "Vishenka Philipp"
 __version__ = "1.0.0"
-
-
-load_dotenv(find_dotenv())
 
 
 def separation_hostname(hostname, seps):
@@ -141,4 +137,5 @@ def main():
 
 
 if __name__ == "__main__":
+    load_dotenv(find_dotenv())
     main()
