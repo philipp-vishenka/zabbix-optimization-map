@@ -23,7 +23,6 @@ def separation_hostname(hostname, seps):
     sep_2_left = sep_2[0].split(seps[0])
     data["name_main_map"] = sep_2_left[0]
     data["name_new_map"] = sep_2_left[1]
-    print(data)
     return data
 
 
@@ -53,8 +52,11 @@ def search_host(zapi, hostname_list):
             "filter": {"name": hostname},
             'output': 'extend'
         }
-        hosts.append(zapi.do_request(method='host.get',
-                                     params=ast.literal_eval(str(params_hosts)))['result'][0])
+        try:
+            hosts.append(zapi.do_request(method='host.get',
+                                         params=ast.literal_eval(str(params_hosts)))['result'][0])
+        except IndexError:
+            return []
     return hosts
 
 
@@ -72,7 +74,6 @@ def preparation_new_template(map_template, map_name, hosts):
 def req_main_host_id(hostname, hosts):
     for host in hosts:
         if host["name"] == hostname:
-            print(host["name"])
             return host["hostid"]
 
 
@@ -94,12 +95,12 @@ def main():
     parser.add_argument("-sr", "--separator", nargs="+", help="")
     args = parser.parse_args()
 
-    data = separation_hostname(args.hostname, args.separator)
-
     zapi = ZabbixAPI(url=os.getenv('URL'),
                      user=os.getenv('USER'),
                      password=os.getenv('PASSWORD'))
 
+    data = separation_hostname(args.hostname, args.separator)
+    print(data)
     map_template = search_map(zapi, args.template)
     if len(map_template) == 1:
         print("Map '%s' found." % args.template)
@@ -132,11 +133,11 @@ def main():
                 else:
                     print("host_id on main map not found")
             else:
-                print("Host '%s' not found (len(hosts)== 0 or > 1)." % hostname_list)
+                print("Host '%s' not found (len(hosts) == 0 or > 1)." % hostname_list)
         else:
-            print("Map '%s' not found (len(maps)== 0 or > 1)." % data["name_main_map"])
+            print("Map '%s' not found (len(maps) == 0 or > 1)." % data["name_main_map"])
     else:
-        print("Map '%s' not found (len(maps)== 0 or > 1)." % args.template)
+        print("Map '%s' not found (len(maps) == 0 or > 1)." % args.template)
 
 
 if __name__ == "__main__":
