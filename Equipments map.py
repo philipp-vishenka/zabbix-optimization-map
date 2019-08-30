@@ -63,7 +63,7 @@ def preparation_new_template(map_template, map_name, hosts):
         for host in hosts:
             if selement["label"] in host["name"] and selement["label"]:
                 print(selement["label"])
-                selement.update({"label": "{HOST.NAME}"})
+                selement.update({"label": "{HOST.NAME}\r\n{HOST.IP}\r\n{HOST.DESCRIPTION}"})
                 selement.update({"elementtype": "0"})
                 selement.update({"elements": [{"hostid": host["hostid"]}]})
     return map_template
