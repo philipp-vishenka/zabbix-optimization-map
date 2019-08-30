@@ -37,7 +37,8 @@ def search_map(zapi, name):
 def generate_host_name(sep, template, hostname_left):
     hostname = []
     for i in template[0]["selements"]:
-        hostname.append("%s%s%s" % (hostname_left, sep, i["label"]))
+        if i["label"]:
+            hostname.append("%s%s%s" % (hostname_left, sep, i["label"]))
     return hostname
 
 
@@ -60,7 +61,8 @@ def preparation_new_template(map_template, map_name, hosts):
     map_template[0].update({"name": map_name})
     for selement in map_template[0]["selements"]:
         for host in hosts:
-            if selement["label"] in host["name"]:
+            if selement["label"] in host["name"] and selement["label"]:
+                print(selement["label"])
                 selement.update({"label": "{HOST.NAME}"})
                 selement.update({"elementtype": "0"})
                 selement.update({"elements": [{"hostid": host["hostid"]}]})
