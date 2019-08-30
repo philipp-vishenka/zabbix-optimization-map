@@ -108,7 +108,7 @@ def main():
             hostname_list = generate_host_name(args.separator[1], map_template, data["hostname_left"])
 
             hosts = search_host(zapi, hostname_list)
-            if len(hosts) == len(hostname_list):
+            if hosts and len(hosts) == len(hostname_list):
                 print("Host '%s' found." % hostname_list)
                 new_map = search_map(zapi, data["name_new_map"])
                 new_map_id = ""
