@@ -4,8 +4,8 @@
 import ast
 import argparse
 import json
-import os
-from dotenv import load_dotenv
+from os import environ
+from dotenv import load_dotenv, find_dotenv
 from pyzabbix import ZabbixAPI
 
 
@@ -13,7 +13,7 @@ __author__ = "Vishenka Philipp"
 __version__ = "1.0.0"
 
 
-load_dotenv('../.env')
+load_dotenv(find_dotenv())
 
 
 def separation_hostname(hostname, seps):
@@ -95,9 +95,9 @@ def main():
     parser.add_argument("-sr", "--separator", nargs="+", help="")
     args = parser.parse_args()
 
-    zapi = ZabbixAPI(url=os.getenv('URL'),
-                     user=os.getenv('USER'),
-                     password=os.getenv('PASSWORD'))
+    zapi = ZabbixAPI(url=environ.get('ZABBIX_URL'),
+                     user=environ.get('ZABBIX_USERNAME'),
+                     password=environ.get('ZABBIX_PASSWORD'))
 
     data = separation_hostname(args.hostname, args.separator)
     print(data)
