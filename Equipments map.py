@@ -9,7 +9,7 @@ from pyzabbix import ZabbixAPI
 
 
 __author__ = "Vishenka Philipp"
-__version__ = "1.0.0"
+__version__ = "2019.08.30"
 
 
 def separation_hostname(hostname, seps):
@@ -86,10 +86,10 @@ def preparation_main_template(map_template, host_id, map_id, element_name):
 
 
 def main():
-    # -hn "1300.22=BKM67-MB3170" -tp "[template] BKM" -sr = -
+    # --prefix "[PRT]" -hn "1300.22=BKM67-MB3170" -tp "[template] BKM" -sr = -
     parser = argparse.ArgumentParser()
     parser.add_argument("-hn", "--hostname", type=str, help="zabbix hostname {HOST.NAME}")
-    parser.add_argument("--prefix", type=str, help="main prefix hostname")
+    parser.add_argument("--prefix", type=str, help="prefix name main map")
     parser.add_argument("-tp", "--template", type=str, help="zabbix template map")
     parser.add_argument("-sr", "--separator", nargs="+", help="")
     args = parser.parse_args()
@@ -99,10 +99,9 @@ def main():
                      password=environ.get('ZABBIX_PASSWORD'))
 
     data = separation_hostname(args.hostname, args.separator)
-    print(data)
+
     map_template = search_map(zapi, args.template)
     if len(map_template) == 1:
-        print("Map '%s' found." % args.template)
         st_1_main_map = search_map(zapi, data["name_main_map"])
 
         main_map = []
@@ -111,21 +110,16 @@ def main():
                 main_map.append(ele)
 
         if len(main_map) == 1:
-            print("Map '%s' found." % data["name_main_map"])
             hostname_list = generate_host_name(args.separator[1], map_template, data["hostname_left"])
-
             hosts = search_host(zapi, hostname_list)
             if hosts and len(hosts) == len(hostname_list):
-                print("Host '%s' found." % hostname_list)
                 new_map = search_map(zapi, data["name_new_map"])
                 new_map_id = ""
                 if len(new_map) == 0:
-                    print("Map '%s' not found." % data["name_new_map"])
                     new_map = preparation_new_template(map_template, data["name_new_map"], hosts)
                     new_map_id = zapi.do_request(method='map.create',
                                                  params=ast.literal_eval(str(new_map)))["result"]["sysmapids"][0]
                 elif len(new_map) == 1:
-                    print("Map '%s' found." % data["name_new_map"])
                     new_map_id = new_map[0]["sysmapid"]
                 else:
                     print("Map '%s' not found (len(maps) > 1)." % data["name_new_map"])
